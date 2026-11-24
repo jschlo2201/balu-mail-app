@@ -1,0 +1,109 @@
+/* Balu-Mail – Spaß-Modus (nur aktiv, wenn <html class="fun">) */
+
+/* Schalter in der Seitenleiste – immer sichtbar */
+#btnFun .fun-sw{margin-left:auto;width:34px;height:20px;border-radius:999px;background:#c3c9d2;position:relative;flex:none;transition:background .2s}
+#btnFun .fun-sw::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .2s}
+#btnFun[aria-pressed="true"] .fun-sw{background:#6A45F0}
+#btnFun[aria-pressed="true"] .fun-sw::after{left:17px}
+.fun-checks{display:flex;flex-direction:column;gap:8px}
+.fun-checks label{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer}
+
+/* ---------- Farben & Formen ---------- */
+html.fun{
+  --bg:#DDF1FF; --line:#ECE8F8;
+  --blue:#6A45F0; --blue-dark:#5531D6; --blue-text:#4A2BC2; --blue-soft:#EDE7FF; --blue-hover:#F6F3FF;
+  --avatar-bg:#FFE3CC; --avatar-fg:#8A3A00;
+  --radius:22px; --font:"Nunito","Segoe UI",system-ui,Arial,sans-serif;
+}
+html.fun #app{position:relative;z-index:1}
+html.fun .card{box-shadow:0 10px 30px rgba(60,70,140,.10)}
+html.fun .brand span{font-family:"Baloo 2","Segoe UI Black","Arial Rounded MT Bold",sans-serif;font-weight:800;color:#4A2BC2}
+html.fun .brand b{color:#FF7A22}
+html.fun .brand img{animation:funFloat 4s ease-in-out infinite}
+html.fun .compose-btn{background:#FF8A3D;color:#2A1400;font-weight:800;height:42px;border-radius:999px;box-shadow:0 6px 16px rgba(255,138,61,.35)}
+html.fun .compose-btn:hover{background:#FF7A22}
+html.fun .nav-item{border-radius:14px}
+html.fun .nav-item:hover,html.fun .side-link:hover,html.fun .nav-acc:hover{background:rgba(255,255,255,.7)}
+html.fun .nav-item.active{background:#fff;color:#3B1FB5;font-weight:700;box-shadow:0 2px 10px rgba(80,60,180,.12)}
+html.fun .nav-item .cnt{background:#FF8A3D;color:#2A1400;border-radius:999px;padding:0 7px;min-width:22px;line-height:20px;text-align:center;font-weight:800}
+html.fun .round-btn,html.fun .search input{border-radius:999px}
+html.fun .avatar{border-radius:14px}
+html.fun .row.unread .avatar{background:#6A45F0;color:#fff}
+html.fun .row.checked .avatar{background:#FF8A3D;color:#2A1400}
+html.fun .row{border-bottom:0;margin:4px 6px;border-radius:16px}
+html.fun .row.current{box-shadow:inset 0 0 0 2px #B9A9F5}
+html.fun .star.on{color:#FFB020}
+html.fun .btn{border-radius:999px}
+html.fun #cpSend{background:#FFD54A;color:#3A2400;font-weight:800}
+html.fun #cpSend:hover{background:#FFC72A}
+html.fun .modal{border-radius:24px}
+html.fun .toast{border-radius:16px;background:#3B1FB5}
+html.fun .toast.err{background:#b3261e}
+html.fun .demo-badge{border-radius:12px}
+
+/* ---------- Himmel mit Wolken ---------- */
+#funSky{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+html:not(.fun) #funSky{display:none}
+.fun-cloud{position:absolute;left:0;background:#fff;border-radius:999px;opacity:.8;animation:funDrift 90s linear infinite}
+.fun-cloud::before,.fun-cloud::after{content:"";position:absolute;background:#fff;border-radius:50%}
+.fun-cloud::before{width:45%;height:150%;left:15%;bottom:30%}
+.fun-cloud::after{width:35%;height:120%;left:48%;bottom:35%}
+@keyframes funDrift{from{transform:translateX(-30vw)}to{transform:translateX(130vw)}}
+@keyframes funFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-4px) rotate(4deg)}}
+@keyframes funPop{0%{transform:translateY(30px) scale(.6);opacity:0}60%{transform:translateY(-5px) scale(1.04);opacity:1}100%{transform:none;opacity:1}}
+@keyframes funWiggle{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(5deg)}}
+@keyframes funFly{0%{transform:translate(0,0) scale(.6);opacity:0}15%{transform:translate(0,-10px) scale(1);opacity:1}100%{transform:translate(45vw,-60vh) rotate(-16deg) scale(.7);opacity:0}}
+
+/* ---------- Leere Ansicht ---------- */
+.fun-empty{width:140px;height:116px;margin-bottom:24px;animation:funFloat 4s ease-in-out infinite}
+.fun-empty svg{width:100%;height:100%}
+
+/* ---------- Lesen: Briefpapier-Auswahl ---------- */
+.fun-themebar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:2px 0 10px}
+.fun-themebar .l{font-size:13px;color:#4A5470;font-weight:700;margin-right:2px}
+.fun-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;background:#F3F0FB;color:#2E3A59;font-size:13px;font-weight:700}
+.fun-chip:hover{background:#E9E3FB}
+.fun-chip i{width:12px;height:12px;border-radius:4px;display:inline-block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.fun-chip[aria-pressed="true"]{background:#6A45F0;color:#fff}
+
+/* ---------- Schreiben: Briefpapier & Sticker ---------- */
+.fun-stage{position:relative;flex:1;display:flex;flex-direction:column;min-height:0;margin:10px 14px 14px;border-radius:20px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(30,42,68,.08)}
+.fun-stage .bm-deco{position:absolute;inset:0;--bm-h:900px}
+.fun-stage .cp-editor{position:relative;z-index:1;background:transparent;font-size:16px;line-height:1.6;padding:24px 26px}
+.cp-editor .bm-st svg,.fun-stbtn svg{width:100%;height:100%}
+.cp-tools .fun-tool{width:auto!important;display:inline-flex;align-items:center;gap:6px;padding:0 10px;color:var(--blue-text)!important;font-weight:700}
+.fun-tool svg{width:18px;height:18px}
+.fun-pop{width:312px;padding:12px!important}
+.fun-pop h4{margin:0 0 8px;font-size:14px}
+.fun-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fun-grid.st{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fun-pop .fun-th{display:flex!important;flex-direction:column;gap:5px;padding:6px!important;border-radius:12px;font-size:12.5px;text-align:center!important;font-weight:600}
+.fun-th .sw{display:block;height:46px;border-radius:9px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
+.fun-th.on{box-shadow:inset 0 0 0 2.5px #6A45F0}
+.fun-pop .fun-stbtn{height:60px;display:flex!important;align-items:center;justify-content:center;border-radius:12px;padding:8px!important}
+.fun-pop .fun-stbtn:hover{background:#F3F0FB}
+.fun-stage .bm-st svg{animation:bmFloat 4s ease-in-out infinite}
+
+/* ---------- Neue Post & Senden ---------- */
+#funNote{position:fixed;right:22px;bottom:22px;z-index:210;display:flex;align-items:center;gap:12px;background:#fff;border-radius:20px;padding:10px 10px 10px 12px;box-shadow:0 14px 40px rgba(60,40,140,.28);animation:funPop .6s ease-out both}
+.fun-bell{width:42px;height:42px;border-radius:14px;background:#FFE8D6;color:#C2410C;display:flex;align-items:center;justify-content:center;animation:funWiggle 1.6s ease-in-out infinite;transform-origin:50% 15%}
+.fun-note-main{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:2px 6px}
+.fun-note-main b{font-size:16px;color:#1E2A44}
+.fun-note-main span{font-size:13.5px;color:#4A5470}
+.fun-note-x{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#4A5470}
+.fun-note-x:hover{background:#F3F0FB}
+.fun-note-x svg{width:18px;height:18px}
+.fun-fly{position:fixed;left:40%;top:55%;width:110px;height:90px;z-index:220;pointer-events:none;animation:funFly 1.4s ease-in forwards}
+.fun-fly svg{width:100%;height:100%}
+
+/* ---------- Ruhig: ohne Bewegung ---------- */
+html.fun-still #funSky *,html.fun-still .brand img,html.fun-still .fun-bell,html.fun-still .fun-empty,html.fun-still .bm-deco>span,html.fun-still .bm-st svg{animation:none!important}
+html.fun-still .bm-ri,html.fun-still .bm-fa{top:var(--rest)!important}
+@media (prefers-reduced-motion:reduce){
+  #funSky *,.brand img,.fun-bell,.fun-empty,.bm-deco>span,.bm-st svg,#funNote{animation:none!important}
+  .bm-ri,.bm-fa{top:var(--rest)!important}
+}
+@media (max-width:760px){
+  .fun-stage{margin:8px}
+  #funNote{right:12px;left:12px;bottom:calc(90px + env(safe-area-inset-bottom))}
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#253248"/><stop offset="1" stop-color="#111827"/></linearGradient><linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC14D"/><stop offset="1" stop-color="#F26B1D"/></linearGradient><radialGradient id="r"><stop offset="0" stop-color="#FF9F2E" stop-opacity=".55"/><stop offset="1" stop-color="#FF9F2E" stop-opacity="0"/></radialGradient><mask id="m"><rect width="512" height="512" fill="#fff"/><circle cx="366" cy="350" r="96" fill="#000"/></mask><clipPath id="k"><rect width="512" height="512" rx="128"/></clipPath></defs>
+<rect width="512" height="512" rx="128" fill="url(#g)"/>
+<circle cx="366" cy="350" r="160" fill="url(#r)" clip-path="url(#k)"/>
+<g mask="url(#m)"><g transform="rotate(-6 240 250)"><rect x="80" y="136" width="324" height="232" rx="40" fill="none" stroke="#fff" stroke-width="28"/>
+<path d="M108 166 L242 260 L376 166" fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+<circle cx="366" cy="350" r="76" fill="url(#s)"/>
+<g transform="translate(366 348) scale(1.1)" fill="#2A1405"><ellipse cx="0" cy="14" rx="27" ry="22"/><circle cx="-31" cy="-14" r="10"/><circle cx="-12" cy="-31" r="10.5"/><circle cx="12" cy="-31" r="10.5"/><circle cx="31" cy="-14" r="10"/></g>
+</svg>

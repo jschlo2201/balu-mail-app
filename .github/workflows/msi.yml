@@ -1,0 +1,319 @@
+name: Balu-Mail bauen (Windows + Android)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  msi:
+    name: Windows-Installer (MSI)
+    runs-on: windows-latest
+    env:
+      PY_VERSION: "3.12.8"
+      WIX_VERSION: "5.0.2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Programmdateien + eingebettetes Python zusammenstellen
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory build\Balu-Mail -Force | Out-Null
+          Copy-Item app\* build\Balu-Mail -Recurse
+          Invoke-WebRequest "https://www.python.org/ftp/python/$env:PY_VERSION/python-$env:PY_VERSION-embed-amd64.zip" -OutFile py.zip
+          Expand-Archive py.zip build\Balu-Mail\python
+          # Versionsnummer für das Auto-Update eintragen
+          $f = "build\Balu-Mail\balumail.py"
+          $src = Get-Content $f -Raw -Encoding UTF8
+          if (-not $src.Contains('VERSION = "1.0.0"')) { throw "Versionszeile nicht gefunden" }
+          $src.Replace('VERSION = "1.0.0"', 'VERSION = "1.0.${{ github.run_number }}"') | Set-Content $f -Encoding UTF8 -NoNewline
+
+      - name: Kurztest mit eingebettetem Python
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $p = Start-Process build\Balu-Mail\python\python.exe -ArgumentList "build\Balu-Mail\balumail.py --demo --no-browser --port 8031" -PassThru
+          Start-Sleep 4
+          $r = Invoke-WebRequest http://127.0.0.1:8031/ -UseBasicParsing
+          $tok = [regex]::Match($r.Content, 'BM_TOKEN = "([^"]+)"').Groups[1].Value
+          $j = Invoke-RestMethod http://127.0.0.1:8031/api/accounts -Headers @{ "X-Token" = $tok }
+          if ($j.Count -lt 1) { throw "API liefert keine Konten" }
+          Stop-Process $p.Id
+          Remove-Item build\Balu-Mail\__pycache__ -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Startprogramm Balu-Mail.exe bauen
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $v = "1.0.${{ github.run_number }}.0"
+          (Get-Content launcher\BaluMail.cs -Raw).Replace('"1.0.0.0"', "`"$v`"") | Set-Content launcher\BaluMail.cs -Encoding UTF8
+          # WebView2 (Microsoft) für das eigene Programmfenster
+          Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.2903.40" -OutFile wv2.zip
+          Expand-Archive wv2.zip wv2 -Force
+          Copy-Item wv2\lib\net462\Microsoft.Web.WebView2.Core.dll, wv2\lib\net462\Microsoft.Web.WebView2.WinForms.dll build\Balu-Mail\
+          Copy-Item wv2\runtimes\win-x64\native\WebView2Loader.dll build\Balu-Mail\
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:winexe /optimize+ /out:build\Balu-Mail\Balu-Mail.exe /win32icon:app\balu-mail.ico /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:build\Balu-Mail\Microsoft.Web.WebView2.Core.dll /r:build\Balu-Mail\Microsoft.Web.WebView2.WinForms.dll launcher\BaluMail.cs
+          if ($LASTEXITCODE -ne 0) { throw "Startprogramm konnte nicht gebaut werden" }
+          $vi = (Get-Item build\Balu-Mail\Balu-Mail.exe).VersionInfo
+          Write-Host "Balu-Mail.exe: $($vi.FileDescription) / $($vi.ProductName) / $($vi.FileVersion)"
+          if ($vi.FileDescription -ne "Balu-Mail") { throw "Programmname falsch" }
+
+      - name: WiX installieren
+        run: dotnet tool install --global wix --version ${{ env.WIX_VERSION }}
+
+      - name: MSI bauen
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          wix build installer\Package.wxs -arch x64 -d Version=1.0.${{ github.run_number }} -bindpath src=build\Balu-Mail -o Balu-Mail.msi
+          if ($LASTEXITCODE -ne 0) { throw "WiX-Fehler" }
+          if ((Get-Item Balu-Mail.msi).Length -lt 5MB) { throw "MSI zu klein – Dateien fehlen" }
+
+      - name: Installation testen
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $proc = Start-Process msiexec -ArgumentList "/i Balu-Mail.msi /qn /l*v install.log" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { Get-Content install.log -Tail 60; throw "Installation fehlgeschlagen ($($proc.ExitCode))" }
+          $dir = "$env:ProgramFiles\Balu-Mail"
+          if (-not (Test-Path "$dir\python\pythonw.exe")) { throw "pythonw.exe fehlt" }
+          if (-not (Test-Path "$dir\Balu-Mail.exe")) { throw "Balu-Mail.exe fehlt" }
+          # Startprogramm testen: muss den Server starten
+          Start-Process "$dir\Balu-Mail.exe" -ArgumentList "--no-browser --port 8035"
+          Start-Sleep 5
+          if ((Invoke-WebRequest http://127.0.0.1:8035/ -UseBasicParsing).StatusCode -ne 200) { throw "Balu-Mail.exe startet Balu-Mail nicht" }
+          Get-Process pythonw -ErrorAction SilentlyContinue | Stop-Process -Force
+          Write-Host "Balu-Mail.exe startet korrekt"
+          # Programmfenster testen: eigenes Fenster mit Titel Balu-Mail, Dienst auf 8025, X lässt es weiterlaufen
+          $log = "$env:LOCALAPPDATA\Balu-Mail\fenster-protokoll.txt"
+          $h = Start-Process "$dir\Balu-Mail.exe" -PassThru
+          Start-Sleep 12
+          if (-not $h) { throw "Programmfenster läuft nicht" }
+          Write-Host "Fenster: '$($h.MainWindowTitle)'"
+          if ((Invoke-WebRequest http://127.0.0.1:8025/ -UseBasicParsing).StatusCode -ne 200) { throw "Programmfenster startet den Dienst nicht" }
+          Start-Process "$dir\Balu-Mail.exe"; Start-Sleep 5
+          if ($h.HasExited) { Get-Content $log -ErrorAction SilentlyContinue; throw "Programmfenster hat sich beim zweiten Start beendet" }
+          if ((Get-Process Balu-Mail -ErrorAction SilentlyContinue).Count -ne 1) { throw "Zweiter Start erzeugt ein zweites Programmfenster" }
+          # echten Klick auf "X" nachahmen (WM_SYSCOMMAND / SC_CLOSE)
+          Add-Type -Namespace W -Name U -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);'
+          $h.Refresh(); $null = [W.U]::PostMessage($h.MainWindowHandle, 0x0112, [IntPtr]0xF060, [IntPtr]0); Start-Sleep 4
+          if ($h.HasExited) { Get-Content $log -ErrorAction SilentlyContinue; throw "X hat Balu-Mail beendet statt es im Hintergrund zu lassen" }
+          Write-Host "X: läuft im Hintergrund weiter"
+          $tok = [regex]::Match((Invoke-WebRequest http://127.0.0.1:8025/ -UseBasicParsing).Content, 'BM_TOKEN = "([^"]+)"').Groups[1].Value
+          Invoke-RestMethod http://127.0.0.1:8025/api/quit -Method Post -Body "{}" -ContentType "application/json" -Headers @{ "X-Token" = $tok } | Out-Null
+          Start-Sleep 35
+          if (Get-Process Balu-Mail -ErrorAction SilentlyContinue) { throw "Programmfenster beendet sich nicht mit dem Dienst" }
+          Write-Host "Programmfenster: Start, Einzelinstanz, X und Beenden korrekt"
+          Write-Host "--- Protokoll"; Get-Content $log -ErrorAction SilentlyContinue
+          $p = Start-Process "$dir\python\python.exe" -ArgumentList "`"$dir\balumail.py`" --no-browser --port 8032" -PassThru
+          Start-Sleep 4
+          $r = Invoke-WebRequest http://127.0.0.1:8032/ -UseBasicParsing
+          if ($r.StatusCode -ne 200) { throw "Installierte Version startet nicht" }
+          Stop-Process $p.Id
+          # Anmeldung als E-Mail-Programm prüfen
+          $reg = Get-ItemProperty "HKLM:\Software\RegisteredApplications" -Name "Balu-Mail"
+          $cap = Get-ItemProperty "HKLM:\Software\Balu-Mail\Capabilities\URLAssociations"
+          $cmd = (Get-ItemProperty "HKLM:\Software\Classes\BaluMail.mailto\shell\open\command").'(default)'
+          Write-Host "Registriert: $($reg.'Balu-Mail') | mailto -> $($cap.mailto) | Befehl: $cmd"
+          if ($cap.mailto -ne "BaluMail.mailto" -or $cmd -notmatch "Balu-Mail.exe") { throw "Registrierung als E-Mail-Programm fehlt" }
+          $an = (Get-ItemProperty "HKLM:\Software\Classes\BaluMail.eml\Application").ApplicationName
+          if ($an -ne "Balu-Mail") { throw "Anzeigename fehlt" }
+          # mailto-Aufruf testen (Programm muss mit dem Link starten)
+          $p2 = Start-Process "$dir\python\python.exe" -ArgumentList "`"$dir\balumail.py`" --no-browser --port 8033 --mailto `"mailto:test@example.org?subject=Hallo`"" -PassThru
+          Start-Sleep 3
+          if ((Invoke-WebRequest http://127.0.0.1:8033/ -UseBasicParsing).StatusCode -ne 200) { throw "Start mit mailto-Link fehlgeschlagen" }
+          Stop-Process $p2.Id
+          $proc = Start-Process msiexec -ArgumentList "/x Balu-Mail.msi /qn" -Wait -PassThru
+          Write-Host "Installation, Start und Deinstallation erfolgreich ($($proc.ExitCode))"
+          # Umstieg per Knopf „Jetzt installieren“ nachstellen (Befehlsdatei → MSI → Programmfenster startet)
+          $msi = (Resolve-Path Balu-Mail.msi).Path
+          & build\Balu-Mail\python\python.exe -c "import sys; sys.argv=['x']; sys.path.insert(0, r'build\Balu-Mail'); import balumail as b; print(b.msi_run(r'$msi', r'$dir'))"
+          for ($i = 0; $i -lt 40 -and -not (Get-Process Balu-Mail -ErrorAction SilentlyContinue); $i++) { Start-Sleep 3 }
+          if (-not (Test-Path "$dir\Microsoft.Web.WebView2.Core.dll")) { throw "Installation per Knopf hat nicht installiert" }
+          if (-not (Get-Process Balu-Mail -ErrorAction SilentlyContinue)) { throw "Nach der Installation per Knopf startet Balu-Mail nicht" }
+          Write-Host "Installation per Knopf: installiert und Programmfenster gestartet"
+          Get-Process Balu-Mail, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep 2
+          $proc = Start-Process msiexec -ArgumentList "/x Balu-Mail.msi /qn" -Wait -PassThru
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: Balu-Mail.msi
+          retention-days: 7
+
+  apk:
+    name: Android-App (APK)
+    runs-on: ubuntu-latest
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Programmdateien in die App übernehmen
+        run: |
+          mkdir -p android/app/src/main/python/balu
+          cp app/balumail.py android/app/src/main/python/balu/
+          cp -r app/web android/app/src/main/python/balu/web
+          touch android/app/src/main/python/balu/__init__.py
+          sed -i 's/^VERSION = "1.0.0"/VERSION = "1.0.'"$BUILD_NUMBER"'"/' android/app/src/main/python/balu/balumail.py
+          grep -q "^VERSION = \"1.0.$BUILD_NUMBER\"" android/app/src/main/python/balu/balumail.py
+
+      - name: Upload-Schlüssel für Google Play bereitstellen
+        env:
+          KS_B64: ${{ secrets.PLAY_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/play-upload.p12"
+            echo "PLAY_KEYSTORE=$RUNNER_TEMP/play-upload.p12" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Kein Play-Upload-Schlüssel hinterlegt – App Bundle wird mit dem Testschlüssel signiert"
+          fi
+
+      - name: APK und Play-App-Bundle bauen
+        working-directory: android
+        env:
+          PLAY_KEYSTORE_PW: ${{ secrets.PLAY_KEYSTORE_PW }}
+        run: gradle --no-daemon assembleSideloadRelease bundlePlayRelease
+
+      - name: APK bereitstellen
+        run: |
+          cp android/app/build/outputs/apk/sideload/release/app-sideload-release.apk Balu-Mail.apk
+          cp android/app/build/outputs/bundle/playRelease/app-play-release.aab Balu-Mail-Play.aab
+          ls -la Balu-Mail.apk Balu-Mail-Play.aab
+
+      - name: Hardware-Beschleunigung (KVM) für den Emulator aktivieren
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Im Android-Emulator testen
+        timeout-minutes: 20
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            adb install -r Balu-Mail.apk
+            adb forward tcp:8025 tcp:8025
+            for n in 1 2 3; do adb shell am start -n de.balumail.app/.MainActivity; sleep 25; curl -sf http://127.0.0.1:8025/ | grep -q "Balu-Mail" && break; echo "Versuch $n ohne Antwort – neuer Start"; done
+            curl -sf http://127.0.0.1:8025/ | grep -q "Balu-Mail" && echo "APP-SERVER LÄUFT" || (adb logcat -d | grep -iE "python|balu|chaquo|AndroidRuntime" | tail -80; exit 1)
+            adb shell dumpsys activity services de.balumail.app | grep -q "MailService" && echo "HINTERGRUNDDIENST LÄUFT" || (adb logcat -d | grep -iE "AndroidRuntime|balu|python.stderr" | tail -80; exit 1)
+            adb shell cmd package query-activities -a android.intent.action.SENDTO -d mailto:test@example.org | grep -q de.balumail.app && echo "MAILTO-REGISTRIERUNG OK" || (echo "mailto nicht registriert"; exit 1)
+            adb shell am start -a android.intent.action.SENDTO -d "mailto:test@example.org?subject=Hallo" -n de.balumail.app/.MainActivity
+            sleep 3
+            adb exec-out screencap -p > emulator.png
+            adb logcat -d | grep -iE "python.stderr|Traceback|AndroidRuntime" | tail -40 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: |
+            Balu-Mail.apk
+            Balu-Mail-Play.aab
+            emulator.png
+          retention-days: 7
+
+  webseite:
+    name: Webseiten-Modus testen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Anmeldung, Verschlüsselung und Sperren prüfen
+        run: python server/test_server.py
+      - name: Installationsskript prüfen
+        run: bash -n server/install-proxmox.sh
+
+  bereitstellen:
+    name: Als privates Release bereitstellen (Repo bleibt privat)
+    needs: [msi, apk, webseite]
+    if: github.ref == 'refs/heads/main'   # Testläufe auf anderen Zweigen nie als Update verteilen
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      COMMIT_MSG: ${{ github.event.head_commit.message }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Programm-Paket für stille Updates (balumail.py + web)
+        run: |
+          mkdir -p paket && cp app/balumail.py paket/ && cp -r app/web paket/web
+          sed -i 's/^VERSION = "1.0.0"/VERSION = "1.0.${{ github.run_number }}"/' paket/balumail.py
+          grep -q '^VERSION = "1.0.${{ github.run_number }}"' paket/balumail.py
+          python3 -m py_compile paket/balumail.py && rm -rf paket/__pycache__
+          (cd paket && zip -qr ../Balu-Mail-Programm.zip balumail.py web)
+          unzip -l Balu-Mail-Programm.zip | tail -3
+      - name: Release mit MSI und APK anlegen (für das Auto-Update)
+        run: |
+          R="$GITHUB_REPOSITORY"
+          # alte Entwürfe aus früheren Builds entfernen
+          for t in $(gh release list -R "$R" --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
+            gh release delete "$t" -R "$R" --yes --cleanup-tag || true
+          done
+          printf '**Herunterladen:** Balu-Mail.msi für Windows · Balu-Mail.apk für Android-Handys (Anleitung siehe README).\nBalu-Mail-Programm.zip wird nur für die automatischen Updates gebraucht.\n\nÄnderung:\n%s\n' "${COMMIT_MSG:-manueller Build}" > notes.md
+          gh release create "v1.0.${{ github.run_number }}" -R "$R" --latest \
+            --title "Balu-Mail 1.0.${{ github.run_number }}" --notes-file notes.md \
+            Balu-Mail.msi Balu-Mail.apk Balu-Mail-Programm.zip
+          # nur die letzten 5 Versionen aufbewahren
+          for t in $(gh release list -R "$R" --limit 100 --json tagName,isDraft,createdAt -q '[.[] | select(.isDraft | not)] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName'); do
+            gh release delete "$t" -R "$R" --yes --cleanup-tag || true
+          done
+
+  playstore:
+    name: In den Play Store hochladen (interner Test)
+    needs: [apk, bereitstellen]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Anmeldung bei Google ohne gespeicherten Schlüssel (Workload Identity)
+    env:
+      HAS_KEY: ${{ secrets.PLAY_KEYSTORE_B64 != '' && vars.PLAY_WIF_PROVIDER != '' }}   # Play-Upload nur, wenn eingerichtet
+    steps:
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - uses: actions/download-artifact@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          name: apk
+      - id: auth
+        if: env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WIF_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: App Bundle hochladen
+        if: env.HAS_KEY == 'true'
+        env:
+          PLAY_TOKEN: ${{ steps.auth.outputs.access_token }}
+          MSG: ${{ github.event.head_commit.message }}
+        run: python tools/play_upload.py Balu-Mail-Play.aab "$(echo "$MSG" | head -1)"

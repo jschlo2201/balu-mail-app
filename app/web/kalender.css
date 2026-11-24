@@ -1,0 +1,180 @@
+/* Balu-Mail – Kalender */
+#calPane{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#app.cal-mode #actionbar,#app.cal-mode #panes{display:none!important}
+.kal-bar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.kal-bar .btn svg{fill:currentColor}
+.kal-title{margin:0 0 0 6px;font-size:17px;font-weight:600;white-space:nowrap}
+.kal-views{display:flex;background:#eef1f5;border-radius:10px;padding:3px;gap:2px}
+.kal-views button{height:30px;padding:0 12px;border-radius:8px;font-size:13.5px;color:#333}
+.kal-views button[aria-pressed="true"]{background:#fff;color:var(--blue-text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+#kSync.spin svg{animation:spin 1s linear infinite}
+.kal-body{flex:1;display:flex;min-height:0}
+.kal-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.kal-side-btn{display:none}
+
+/* Seitenleiste */
+.kal-side{width:232px;flex:none;border-right:1px solid var(--line);overflow-y:auto;padding:10px 10px 16px}
+.kal-mini-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-size:13.5px}
+.kal-mini-head button{width:28px;height:28px;border-radius:50%;font-size:18px;color:var(--blue-text)}
+.kal-mini-head button:hover{background:var(--blue-hover)}
+.kal-mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;font-size:12px}
+.kal-mini-grid .h{color:#6b6f76;padding:3px 0;font-weight:600}
+.kal-mini-grid button{height:27px;border-radius:50%;color:#222}
+.kal-mini-grid button:hover{background:var(--blue-hover)}
+.kal-mini-grid button.o{color:#8a8f97}
+.kal-mini-grid button.t{color:var(--blue-text);font-weight:700;box-shadow:inset 0 0 0 1.5px var(--blue)}
+.kal-mini-grid button.s{background:var(--blue);color:#fff}
+.kal-srcs{margin-top:14px}
+.kal-grp{font-size:12px;font-weight:700;color:#5c6168;text-transform:uppercase;letter-spacing:.04em;margin:12px 4px 4px}
+.kal-src{display:flex;align-items:center;gap:4px;border-radius:8px;padding:0 2px 0 4px}
+.kal-src:hover{background:#f2f4f7}
+.kal-src label{flex:1;min-width:0;display:flex;align-items:center;gap:7px;min-height:34px;cursor:pointer;font-size:13.5px}
+.kal-src input{width:16px;height:16px;flex:none}
+.kal-src .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kal-dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.kal-err{width:18px;height:18px;border-radius:50%;background:#fde7e6;color:#b3261e;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.kal-src-more{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#555;opacity:.6}
+.kal-src-more:hover{opacity:1;background:#e5e9ef}
+.kal-src-more svg{width:18px;height:18px}
+.kal-add{margin-top:10px;width:100%;justify-content:center}
+
+/* Zeitraster */
+.kal-grid{display:flex;flex-direction:column;flex:1;min-height:0}
+.kal-ghead,.kal-gallday{display:grid;grid-template-columns:56px repeat(var(--days),minmax(0,1fr));border-bottom:1px solid var(--line);padding-right:10px}
+.kal-dh{text-align:center;padding:6px 2px;border-left:1px solid var(--line)}
+.kal-dh button{font-size:13px;color:#444;padding:2px 8px;border-radius:14px}
+.kal-dh button:hover{background:var(--blue-hover)}
+.kal-dh b{font-size:17px;font-weight:600;color:#222}
+.kal-dh.t button{background:var(--blue);color:#fff}
+.kal-dh.t b{color:#fff}
+.kal-gutter{font-size:11px;color:#6b6f76;text-align:right;padding-right:6px;position:relative}
+.kal-gallday .kal-gutter{padding-top:6px}
+.kal-ad{border-left:1px solid var(--line);padding:3px;min-height:30px;display:flex;flex-direction:column;gap:2px;cursor:cell}
+.kal-gscroll{flex:1;overflow-y:auto;position:relative;scrollbar-gutter:stable}
+.kal-gbody{display:grid;grid-template-columns:56px repeat(var(--days),minmax(0,1fr));position:relative}
+.kal-hl{position:absolute;right:6px;transform:translateY(-7px)}
+.kal-col{position:relative;border-left:1px solid var(--line);cursor:cell;
+  background-image:linear-gradient(#e7eaef 1px,transparent 1px),linear-gradient(#f3f5f8 1px,transparent 1px);background-size:100% 48px,100% 24px}
+.kal-col.we{background-color:#fafbfc}
+.kal-col.t{background-color:#f5f9ff}
+.kal-now{position:absolute;left:0;right:0;height:2px;background:#d93025;z-index:3}
+.kal-now::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:#d93025}
+.kal-ev{position:absolute;margin-left:2px;border-radius:6px;padding:3px 6px;overflow:hidden;cursor:pointer;z-index:2;font-size:12.5px;line-height:1.3;
+  background:color-mix(in srgb,var(--c) 18%,#fff);border-left:4px solid var(--c);color:#1f1f1f;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.kal-ev:hover{box-shadow:0 2px 8px rgba(0,0,0,.18);z-index:4}
+.kal-ev b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kal-ev span{display:block;color:#444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kal-ev .rec{position:absolute;right:5px;top:2px;font-style:normal;color:#555}
+.kal-ev.drag{opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:9;cursor:grabbing}
+.kal-ev:not(.ro){touch-action:none}
+.kal-chip{font-size:12px;line-height:1.35;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:color-mix(in srgb,var(--c) 16%,#fff);border-left:3px solid var(--c);color:#1f1f1f}
+.kal-chip.ad{background:var(--c);color:#fff;border-left:0;font-weight:500}
+.kal-chip:hover{filter:brightness(.95)}
+
+/* Durchgehende Balken */
+.kal-gallday{position:relative}
+.kal-spans{position:absolute;inset:0;pointer-events:none}
+.kal-gallday .kal-spans{left:56px;right:10px}
+.kal-span{position:absolute;height:19px;line-height:19px;font-size:12px;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;
+  pointer-events:auto;background:color-mix(in srgb,var(--c) 22%,#fff);color:#1f1f1f;border-radius:0;z-index:2}
+.kal-span.s{border-top-left-radius:6px;border-bottom-left-radius:6px;border-left:4px solid var(--c)}
+.kal-span.e{border-top-right-radius:6px;border-bottom-right-radius:6px}
+.kal-span.ad{background:var(--c);color:#fff}
+.kal-span b{font-weight:600}
+.kal-span small{opacity:.8}
+.kal-span:hover{filter:brightness(.95);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+
+/* Monat */
+.kal-month{flex:1;display:flex;flex-direction:column;min-height:0}
+.kal-mhead{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--line)}
+.kal-mhead div{padding:6px 8px;font-size:12.5px;font-weight:600;color:#5c6168}
+.kal-mgrid{flex:1;display:flex;flex-direction:column;overflow:auto}
+.kal-mweek{flex:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));position:relative}
+.kal-mcell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:3px 4px;display:flex;flex-direction:column;gap:2px;min-height:96px;overflow:hidden;cursor:cell}
+.kal-mcell.o{background:#fafbfc}
+.kal-mcell.o .kal-mnum{color:#8a8f97}
+.kal-mcell.we{background-color:#fafbfc}
+.kal-mcell.drop{outline:2px dashed var(--blue);outline-offset:-3px}
+.kal-mnum{align-self:flex-start;font-size:13px;padding:1px 7px;border-radius:12px;color:#333}
+.kal-mnum:hover{background:var(--blue-hover)}
+.kal-mcell.t .kal-mnum{background:var(--blue);color:#fff;font-weight:700}
+.kal-more{font-size:12px;color:var(--blue-text);text-align:left;padding:0 4px}
+
+/* Liste */
+.kal-list{flex:1;overflow-y:auto;padding:6px 14px 20px}
+.kal-lday{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.kal-ldate{width:64px;flex:none;display:flex;flex-direction:column;align-items:center}
+.kal-ldate b{font-size:24px;font-weight:600;line-height:1.1}
+.kal-ldate span{font-size:12px;color:#5c6168}
+.kal-lday.t .kal-ldate b{color:var(--blue-text)}
+.kal-litems{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.kal-litem{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:10px;border-left:4px solid var(--c);background:#f7f8fa;cursor:pointer}
+.kal-litem:hover{background:#eef2f8}
+.kal-litem .tm{width:110px;flex:none;font-size:13px;color:#444}
+.kal-litem .tt{flex:1;min-width:0;display:flex;flex-direction:column}
+.kal-litem .tt b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kal-litem .tt small{color:#5c6168}
+.kal-litem .src{font-size:12px;color:#5c6168;white-space:nowrap}
+
+/* Dialoge */
+.kal-form{grid-template-columns:120px 1fr}
+.kal-form textarea{border:1px solid #cdd3dc;border-radius:8px;padding:8px 10px;font:inherit;resize:vertical;outline:none}
+.kal-dt{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kal-dt input[type=date],.kal-dt input[type=time],.kal-dt select{width:auto!important;flex:1;min-width:120px}
+.kal-inl{display:flex;align-items:center;gap:8px;color:#333!important}
+.kal-inl input{width:auto!important;height:auto!important}
+.kal-rr input[type=number]{height:36px;border:1px solid #cdd3dc;border-radius:8px;padding:0 8px}
+.kal-wd{display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:13.5px;color:#333!important}
+.kal-wd input{width:auto!important;height:auto!important}
+[hidden].kal-rr,[hidden].kal-inv{display:none!important}
+.kal-note{margin:-4px 0 12px;color:#5c6168;font-size:13px}
+.kal-ro div{margin:6px 0}
+.kal-desc{white-space:pre-wrap;background:#f6f8fb;border-radius:10px;padding:10px 12px}
+.kal-add-opts{display:flex;flex-direction:column;gap:8px}
+.kal-opt{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:10px 14px;border-radius:12px;border:1px solid var(--line)}
+.kal-opt:hover,.kal-opt.on{background:var(--blue-hover);border-color:#b9d0f5}
+.kal-opt span{font-size:13px;color:#5c6168}
+.kal-found{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.kal-found label{display:flex;align-items:center;gap:8px}
+.kal-help{background:#f6f8fb;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:14px}
+.kal-help ol{margin:8px 0 0;padding-left:20px;line-height:1.7}
+.kal-help a{color:var(--blue-text)}
+
+/* Erinnerungen */
+.kal-rem{position:fixed;right:20px;bottom:20px;width:380px;max-width:calc(100vw - 24px);z-index:190;padding:12px 14px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.kal-rem-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--blue-text)}
+.kal-rem-h b{color:#1f1f1f;font-size:15px}
+.kal-rem-i{border-left:4px solid var(--c);padding:6px 0 8px 10px;margin-bottom:6px;display:flex;flex-direction:column;gap:6px}
+.kal-rem-i span{display:block;font-size:13px;color:#444}
+.kal-rem-i em{font-style:normal;font-size:12.5px;color:#b3261e;font-weight:600}
+.kal-rem-b{display:flex;gap:6px;justify-content:flex-end}
+.kal-rem-b .btn{height:32px;padding:0 14px}
+.kal-rem-n{color:var(--blue-text);font-size:13px;margin-top:4px}
+
+/* Einladung in der E-Mail */
+.kal-inv-card{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f1f6ff;border:1px solid #cfe0fb;border-radius:12px;padding:10px 12px;margin:0 0 10px}
+.kal-inv-i{color:var(--blue-text);flex:none}
+.kal-inv-t{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px;font-size:13.5px}
+.kal-inv-t b{font-size:14.5px}
+.kal-inv-b{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.kal-inv-b select{height:34px;border:1px solid #cdd3dc;border-radius:8px;padding:0 8px;background:#fff}
+.kal-inv-b .btn{height:34px;padding:0 14px}
+.kal-done{font-weight:600;color:#188038}
+
+@media (max-width:760px){
+  .kal-side{display:none;position:absolute;z-index:20;background:#fff;height:100%;box-shadow:4px 0 18px rgba(0,0,0,.15)}
+  .kal-side.open{display:block}
+  .kal-body{position:relative}
+  .kal-side-btn{display:inline-flex}
+  .kal-bar .btn span{display:none}
+  .kal-title{font-size:15px;order:10;width:100%;margin:2px 0 0}
+  .kal-views{order:11;width:100%;overflow-x:auto}
+  .kal-views button{flex:1;padding:0 6px}
+  .kal-form{grid-template-columns:1fr}
+  .kal-litem{flex-wrap:wrap}
+  .kal-litem .tm{width:auto}
+  .kal-litem .src{display:none}
+  .kal-mcell{min-height:64px}
+  .kal-chip{font-size:10.5px;padding:1px 3px}
+}

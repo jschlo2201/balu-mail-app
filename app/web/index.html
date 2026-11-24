@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balu-Mail</title>
+<meta name="theme-color" content="#1a6fe6">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/logos/__LOGO__-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/logos/__LOGO__-192.png">
+<link rel="apple-touch-icon" href="/icons/logos/__LOGO__-192.png">
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/fun.css">
+<link rel="stylesheet" href="/kalender.css">
+<script>window.BM_TOKEN = "__TOKEN__"; window.BM_LOGO = "__LOGO__";</script>
+</head>
+<body>
+<div id="app">
+  <div id="navShade"></div>
+  <aside id="sidebar">
+    <div class="brand"><img src="/icons/logos/__LOGO__.svg" alt=""><span>Balu<b>-Mail</b></span></div>
+    <button id="btnCompose" class="compose-btn">E-Mail schreiben</button>
+    <nav id="nav"></nav>
+    <div class="side-footer">
+      <button class="side-link" id="btnFun" aria-pressed="false" title="Briefpapier, Sticker und Animationen"><i data-i="party"></i><span>Spaß-Modus</span><span class="fun-sw" aria-hidden="true"></span></button>
+      <button class="side-link" id="btnOpenEml"><i data-i="attach"></i><span>E-Mail-Datei öffnen</span></button>
+      <button class="side-link" id="btnApk" hidden title="Balu-Mail-App fürs Android-Handy herunterladen"><i data-i="download"></i><span>Handy-App laden</span></button>
+      <button class="side-link" id="btnSettings"><i data-i="settings"></i><span>Einstellungen</span></button>
+      <button class="side-link" id="btnQuit"><i data-i="power"></i><span>Balu-Mail beenden</span></button>
+      <button class="side-link" id="btnLogout" hidden><i data-i="power"></i><span>Abmelden</span></button>
+      <div id="demoBadge" class="demo-badge" hidden>Demo-Modus – Beispieldaten</div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header id="topbar">
+      <button class="round-btn" id="btnMenu" title="Menü"><i data-i="menu"></i></button>
+      <div class="search">
+        <input id="search" type="search" placeholder="Suchen" autocomplete="off">
+        <i data-i="search" class="search-icon"></i>
+      </div>
+      <button class="link-btn" id="btnSearchOpts" title="Suchoptionen"><i data-i="tune"></i><span>Suchoptionen</span></button>
+      <div class="search-opts" id="searchOpts" hidden>
+        <label><input type="radio" name="sscope" value="view" checked> Aktuelle Ansicht durchsuchen</label>
+        <label><input type="radio" name="sscope" value="unread"> Nur ungelesene</label>
+        <label><input type="radio" name="sscope" value="flagged"> Nur Favoriten</label>
+      </div>
+    </header>
+
+    <section id="workspace">
+      <div id="updBar" class="upd-bar card" role="status" hidden></div>
+      <div id="actionbar" class="card">
+        <button class="icon-btn back-btn" data-act="back" title="Zurück"><i data-i="back"></i></button>
+        <label class="chk" title="Alle auswählen"><input type="checkbox" id="chkAll"><span></span></label>
+        <div class="dd">
+          <button class="icon-btn small" id="btnSelMenu" title="Auswahl"><i data-i="down"></i></button>
+          <div class="menu" id="selMenu" hidden>
+            <button data-sel="all">Alle auswählen</button>
+            <button data-sel="none">Auswahl aufheben</button>
+            <button data-sel="unread">Ungelesene auswählen</button>
+            <button data-sel="read">Gelesene auswählen</button>
+            <hr>
+            <button data-sel="markread">Als gelesen markieren</button>
+            <button data-sel="markunread">Als ungelesen markieren</button>
+            <button data-sel="flag">Als Favorit markieren</button>
+            <button data-sel="unflag">Favorit entfernen</button>
+          </div>
+        </div>
+        <span id="selCount" class="sel-count">0 ausgewählt</span>
+        <button class="act" data-act="delete" title="Löschen"><i data-i="delete"></i><span>Löschen</span></button>
+        <button class="act" data-act="spam" title="Spam"><i data-i="spam"></i><span>Spam</span></button>
+        <span class="vsep"></span>
+        <button class="act" data-act="move" title="Verschieben"><i data-i="move"></i><span>Verschieben</span></button>
+        <button class="act" data-act="reply" title="Antworten"><i data-i="reply"></i><span>Antworten</span></button>
+        <button class="act" data-act="replyall" title="Allen antworten"><i data-i="replyall"></i><span>Allen antworten</span></button>
+        <button class="act" data-act="forward" title="Weiterleiten"><i data-i="forward"></i><span>Weiterleiten</span></button>
+        <span class="vsep"></span>
+        <span class="grow"></span>
+        <span class="vsep"></span>
+        <button class="icon-btn" data-act="prev" title="Vorherige E-Mail"><i data-i="up"></i></button>
+        <button class="icon-btn" data-act="next" title="Nächste E-Mail"><i data-i="down"></i></button>
+        <span class="vsep"></span>
+        <button class="icon-btn" data-act="close" title="Schließen"><i data-i="close"></i></button>
+      </div>
+
+      <div id="panes">
+        <div id="listPane" class="card">
+          <div id="listHead"><span id="viewTitle">Posteingang</span><span id="viewCount"></span><button class="icon-btn small list-refresh" id="btnListRefresh" title="Aktualisieren"><i data-i="refresh"></i></button></div>
+          <div id="list" tabindex="0"></div>
+        </div>
+        <div id="readPane" class="card"></div>
+        <div id="composePane" class="card" hidden></div>
+      </div>
+      <div id="calPane" class="card" hidden></div>
+    </section>
+  </main>
+  <button id="fab" title="E-Mail schreiben"><i data-i="drafts"></i></button>
+</div>
+
+<div id="modal" class="modal-bg" hidden><div class="modal card" id="modalBox"></div></div>
+<div id="toast" class="toast" hidden></div>
+<input type="file" id="filePick" multiple hidden>
+<script src="/fun.js"></script>
+<script src="/app.js"></script>
+<script src="/kalender.js"></script>
+</body>
+</html>

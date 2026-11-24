@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Balu-Mail – Windows-Installer (WiX Toolset v5) -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Balu-Mail"
+           Manufacturer="Balu-Mail"
+           Version="$(var.Version)"
+           UpgradeCode="32F83E00-273D-439D-8E9B-1886B706C497"
+           Scope="perMachine"
+           Language="1031"
+           Codepage="1252">
+    <SummaryInformation Description="Balu-Mail – E-Mail-Programm für alle Konten" />
+    <MajorUpgrade DowngradeErrorMessage="Eine neuere Version von Balu-Mail ist bereits installiert." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="BaluIcon.ico" SourceFile="!(bindpath.src)balu-mail.ico" />
+    <Property Id="ARPPRODUCTICON" Value="BaluIcon.ico" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Balu-Mail" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="Main" Title="Balu-Mail" Level="1">
+      <Files Directory="INSTALLFOLDER" Include="..\build\Balu-Mail\**" />
+
+      <Component Id="Shortcuts" Directory="INSTALLFOLDER" Guid="9ECCCB6D-FD67-40A2-9654-38C7256F855F">
+        <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Balu-Mail"
+                  Description="Balu-Mail – E-Mail-Programm"
+                  Target="[INSTALLFOLDER]Balu-Mail.exe"
+                  Arguments="--app"
+                  WorkingDirectory="INSTALLFOLDER" Icon="BaluIcon.ico" />
+        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Balu-Mail"
+                  Description="Balu-Mail – E-Mail-Programm"
+                  Target="[INSTALLFOLDER]Balu-Mail.exe"
+                  Arguments="--app"
+                  WorkingDirectory="INSTALLFOLDER" Icon="BaluIcon.ico" />
+        <RegistryValue Root="HKMU" Key="Software\Balu-Mail" Name="installiert" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <!-- Bei Windows als E-Mail-Programm anmelden (Einstellungen → Apps → Standard-Apps) -->
+      <Component Id="WindowsRegistration" Directory="INSTALLFOLDER" Guid="60D417D7-F674-45F1-9A90-548653624BF0">
+        <RegistryValue Root="HKLM" Key="Software\RegisteredApplications" Name="Balu-Mail" Type="string" Value="Software\Balu-Mail\Capabilities" KeyPath="yes" />
+        <RegistryKey Root="HKLM" Key="Software\Balu-Mail\Capabilities">
+          <RegistryValue Name="ApplicationName" Type="string" Value="Balu-Mail" />
+          <RegistryValue Name="ApplicationDescription" Type="string" Value="Alle E-Mail-Konten in einer App" />
+          <RegistryValue Name="ApplicationIcon" Type="string" Value="[INSTALLFOLDER]balu-mail.ico,0" />
+        </RegistryKey>
+        <RegistryValue Root="HKLM" Key="Software\Balu-Mail\Capabilities\URLAssociations" Name="mailto" Type="string" Value="BaluMail.mailto" />
+        <RegistryValue Root="HKLM" Key="Software\Balu-Mail\Capabilities\FileAssociations" Name=".eml" Type="string" Value="BaluMail.eml" />
+
+        <RegistryKey Root="HKLM" Key="Software\Classes\BaluMail.mailto">
+          <RegistryValue Type="string" Value="URL:MailTo-Protokoll" />
+          <RegistryValue Name="URL Protocol" Type="string" Value=" " />
+          <RegistryValue Name="FriendlyTypeName" Type="string" Value="Balu-Mail – E-Mail-Link" />
+        </RegistryKey>
+        <RegistryValue Root="HKLM" Key="Software\Classes\BaluMail.mailto\DefaultIcon" Type="string" Value="[INSTALLFOLDER]balu-mail.ico,0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\BaluMail.mailto\shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]Balu-Mail.exe&quot; --app --mailto &quot;%1&quot;" />
+
+        <RegistryKey Root="HKLM" Key="Software\Classes\BaluMail.eml">
+          <RegistryValue Type="string" Value="E-Mail-Nachricht" />
+          <RegistryValue Name="FriendlyTypeName" Type="string" Value="E-Mail-Nachricht (Balu-Mail)" />
+        </RegistryKey>
+        <RegistryValue Root="HKLM" Key="Software\Classes\BaluMail.eml\DefaultIcon" Type="string" Value="[INSTALLFOLDER]balu-mail.ico,0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\BaluMail.eml\shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]Balu-Mail.exe&quot; --app --eml &quot;%1&quot;" />
+
+        <RegistryKey Root="HKLM" Key="Software\Classes\BaluMail.mailto\Application">
+          <RegistryValue Name="ApplicationName" Type="string" Value="Balu-Mail" />
+          <RegistryValue Name="ApplicationIcon" Type="string" Value="[INSTALLFOLDER]balu-mail.ico,0" />
+          <RegistryValue Name="ApplicationCompany" Type="string" Value="Balu-Mail" />
+          <RegistryValue Name="ApplicationDescription" Type="string" Value="Alle E-Mail-Konten in einer App" />
+        </RegistryKey>
+        <RegistryKey Root="HKLM" Key="Software\Classes\BaluMail.eml\Application">
+          <RegistryValue Name="ApplicationName" Type="string" Value="Balu-Mail" />
+          <RegistryValue Name="ApplicationIcon" Type="string" Value="[INSTALLFOLDER]balu-mail.ico,0" />
+          <RegistryValue Name="ApplicationCompany" Type="string" Value="Balu-Mail" />
+          <RegistryValue Name="ApplicationDescription" Type="string" Value="Alle E-Mail-Konten in einer App" />
+        </RegistryKey>
+        <RegistryKey Root="HKLM" Key="Software\Classes\Applications\Balu-Mail.exe">
+          <RegistryValue Name="FriendlyAppName" Type="string" Value="Balu-Mail" />
+        </RegistryKey>
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\Balu-Mail.exe\SupportedTypes" Name=".eml" Type="string" Value="" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\Balu-Mail.exe\shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]Balu-Mail.exe&quot; --app --eml &quot;%1&quot;" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.eml\OpenWithProgids" Name="BaluMail.eml" Type="string" Value="" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>
