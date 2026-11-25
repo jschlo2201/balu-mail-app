@@ -193,10 +193,25 @@ def folder_action(d):
 
 DRAFT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 
+_draft_locks, _draft_gone, _draft_glock = {}, {}, threading.Lock()
+
+def _draft_lock(did):
+    with _draft_glock:
+        now = time.time()
+        for k in [k for k, t in _draft_gone.items() if now - t > 3600]: _draft_gone.pop(k, None)
+        return _draft_locks.setdefault(did, threading.Lock())
+
 def draft_save(data):
-    """Entwurf ablegen; mit draft_id ersetzt er ältere Fassungen desselben Entwurfs (auch aus anderen Konten)."""
+    """Entwurf ablegen; mit draft_id ersetzt er ältere Fassungen desselben Entwurfs (auch aus anderen Konten).
+    Gleichzeitige Sicherungen desselben Entwurfs laufen nacheinander, damit immer genau eine Fassung übrig bleibt."""
     did = data.get("draft_id") or ""
     if did and not DRAFT_ID_RE.match(did): raise RuntimeError("Ungültige Entwurfs-Kennung")
+    if not did: return _draft_save(data, did)
+    with _draft_lock(did):
+        if did in _draft_gone: return {"ok": True, "skipped": True}     # schon gesendet/verworfen
+        return _draft_save(data, did)
+
+def _draft_save(data, did):
     c = client(data["acc"])
     em = make_email(c.acc, data)
     if data.get("bcc"): em["Bcc"] = data["bcc"]
@@ -208,18 +223,24 @@ def draft_save(data):
         if did: draft_delete(data["acc"], did, keep_newest=True)
         return {"ok": True}
     if not c.special_folder("drafts"): raise RuntimeError("Dieses Konto hat keinen Entwürfe-Ordner.")
-    c.append("drafts", em.as_bytes(), "(\\Seen \\Draft)")
+    new_uid = c.append("drafts", em.as_bytes(), "(\\Seen \\Draft)")
     if did:
-        draft_delete(data["acc"], did, keep_newest=True)
+        draft_delete(data["acc"], did, keep_newest=True, keep_uid=new_uid)
         for a in load_accounts():          # Absender gewechselt: alte Fassung im anderen Konto entfernen
             if a["id"] != data["acc"]:
                 try: draft_delete(a["id"], did, only_if_cached=True)
                 except Exception: pass
     return {"ok": True}
 
-def draft_delete(acc_id, did, keep_newest=False, only_if_cached=False):
+def draft_delete(acc_id, did, keep_newest=False, only_if_cached=False, keep_uid=None):
     """Alle Fassungen eines Entwurfs (X-Balu-Draft) löschen – auf Wunsch die neueste behalten."""
     if not did or not DRAFT_ID_RE.match(did): return {"ok": True, "deleted": 0}
+    if not keep_newest and not only_if_cached:          # gesendet/verworfen: späte Sicherungen nicht mehr ablegen
+        with _draft_glock: _draft_gone[did] = time.time()
+        with _draft_lock(did): return _draft_delete(acc_id, did, False, False, None)
+    return _draft_delete(acc_id, did, keep_newest, only_if_cached, keep_uid)
+
+def _draft_delete(acc_id, did, keep_newest, only_if_cached, keep_uid):
     if only_if_cached and acc_id not in _clients: return {"ok": True, "deleted": 0}
     c = client(acc_id)
     if DEMO:
@@ -230,14 +251,68 @@ def draft_delete(acc_id, did, keep_newest=False, only_if_cached=False):
         return {"ok": True, "deleted": len(hits)}
     folder = c.special_folder("drafts")
     if not folder: return {"ok": True, "deleted": 0}
-    def fn(c2):
-        c.select(c2, folder)
-        typ, d = c2.uid("SEARCH", "HEADER", "X-Balu-Draft", did)
-        return sorted(int(x) for x in (d[0] or b"").split()) if typ == "OK" else []
-    uids = c.run(fn)
-    if keep_newest and uids: uids = uids[:-1]
+    uids = sorted(u for u, k in draft_ids(c, folder).items() if k == did)
+    if keep_newest and uids:
+        keep = keep_uid if keep_uid in uids else uids[-1]
+        uids = [u for u in uids if u != keep]
     if uids: c.delete_forever(folder, uids)
     return {"ok": True, "deleted": len(uids)}
+
+def draft_ids(c, folder):
+    """{UID: Entwurfs-Kennung} aller Balu-Entwürfe im Ordner – direkt aus den Kopfzeilen gelesen.
+    (Die Server-Suche nach eigenen Kopfzeilen liefert bei manchen Anbietern, z. B. GMX, nichts.)"""
+    def fn(c2):
+        c.selected = None                    # frisch öffnen, damit gerade abgelegte Fassungen sichtbar sind
+        c.select(c2, folder)
+        typ, d = c2.uid("FETCH", "1:*", "(UID BODY.PEEK[HEADER.FIELDS (X-Balu-Draft)])")
+        out = {}
+        if typ != "OK": return out
+        for it in d or []:
+            if not isinstance(it, tuple): continue
+            m = re.search(rb"UID (\d+)", it[0]); h = re.search(rb"(?im)^X-Balu-Draft:\s*(\S+)", it[1] or b"")
+            if m and h: out[int(m.group(1))] = h.group(1).decode("ascii", "replace")
+        return out
+    try: return c.run(fn)
+    except Exception: return {}
+
+def draft_cleanup(acc_id):
+    """Aufräumen: von jedem Entwurf nur die neueste Fassung behalten (entfernt Mehrfach-Sicherungen)."""
+    c = client(acc_id)
+    if DEMO: return 0
+    folder = c.special_folder("drafts")
+    if not folder: return 0
+    seen, extra = set(), []
+    for u, k in sorted(draft_ids(c, folder).items(), reverse=True):
+        if k in seen: extra.append(u)
+        else: seen.add(k)
+    if extra: c.delete_forever(folder, sorted(extra))
+    return len(extra)
+
+def open_url(url):
+    """Handy: Link im Browser bzw. in der passenden App öffnen (Android-Intent)."""
+    url = str(url or "").strip()
+    if not re.match(r"(?i)^(https?|tel|sms|geo):", url) or len(url) > 8000: raise RuntimeError("Ungültiger Link")
+    if not ANDROID:
+        webbrowser.open(url); return {"ok": True}
+    from java import jclass, cast
+    try:
+        if jclass("de.balumail.app.Updater").openUrl(url): return {"ok": True}
+    except Exception: pass
+    Intent, Uri = jclass("android.content.Intent"), jclass("android.net.Uri")
+    plat = jclass("com.chaquo.python.Python").getPlatform()
+    app = cast(jclass("com.chaquo.python.android.AndroidPlatform"), plat).getApplication()
+    i = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    app.startActivity(i)
+    return {"ok": True}
+
+def draft_cleanup_all():
+    if STOP.wait(20): return
+    for a in load_accounts():
+        try:
+            n = draft_cleanup(a["id"])
+            if n: say(f"Entwürfe aufgeräumt ({a.get('email')}): {n} ältere Fassungen entfernt")
+        except Exception: pass
 
 def _apply_order(accs, order):
     """Konten nach gespeicherter Reihenfolge (Liste von E-Mail-Adressen) sortieren; unbekannte bleiben hinten."""
@@ -1073,7 +1148,12 @@ class ImapAccount:
         target = self.special_folder(kind)
         if not target: return
         def fn(c):
-            c.append(q(target), flags, imaplib.Time2Internaldate(time.time()), msg_bytes)
+            typ, d = c.append(q(target), flags, imaplib.Time2Internaldate(time.time()), msg_bytes)
+            m = re.search(rb"APPENDUID \d+ (\d+)", b" ".join(x for x in (d or []) if isinstance(x, bytes)))
+            if target == self.selected:          # Ordner ist geöffnet: neue Nachricht sichtbar machen
+                try: c.noop()
+                except Exception: pass
+            return int(m.group(1)) if m else None
         return self.run(fn)
 
     def send(self, em: EmailMessage, rcpts=None, dsn=False):
@@ -3139,6 +3219,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True, "dsn": dsn_ok is not False})
             if u.path == "/api/draft":
                 return self._json(draft_save(data))
+            if u.path == "/api/open":
+                if SERVER_MODE: raise RuntimeError("Auf der Webseite öffnet der Browser Links selbst.")
+                return self._json(open_url(data.get("url")))
             if u.path == "/api/draft/delete":
                 return self._json(draft_delete(data.get("acc"), data.get("draft_id")))
             if u.path == "/api/settings":
@@ -3919,6 +4002,7 @@ def run_android(data_path, token, port=8025):
     threading.Thread(target=sync_loop, daemon=True).start()
     threading.Thread(target=kal_loop, daemon=True).start()
     threading.Thread(target=logo_startup, daemon=True).start()
+    threading.Thread(target=draft_cleanup_all, daemon=True).start()
     threading.Thread(target=notify_loop, daemon=True).start()
     srv.serve_forever()
     srv.server_close()
@@ -4048,6 +4132,7 @@ def main():
     threading.Thread(target=sync_loop, daemon=True).start()
     threading.Thread(target=kal_loop, daemon=True).start()
     threading.Thread(target=logo_startup, daemon=True).start()
+    threading.Thread(target=draft_cleanup_all, daemon=True).start()
     if DEMO: kal_demo_setup()
     frag = launch_fragment()
     if not DEMO:

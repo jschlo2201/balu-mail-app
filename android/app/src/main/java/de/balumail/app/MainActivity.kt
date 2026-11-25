@@ -82,6 +82,14 @@ class MainActivity : AppCompatActivity() {
             textZoom = 100
         }
 
+        web.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun openUrl(url: String) {
+                if (!Regex("(?i)^(https?|tel|sms|geo):.*").matches(url)) return
+                try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+            }
+        }, "BaluNative")
+
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val u = request.url

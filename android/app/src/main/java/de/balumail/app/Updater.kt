@@ -55,6 +55,14 @@ object Updater {
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
     }
 
+    /** Link im Browser bzw. in der passenden App öffnen. */
+    @JvmStatic fun openUrl(url: String): Boolean {
+        val c = ctx ?: return false
+        return try {
+            c.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
+        } catch (_: Exception) { false }
+    }
+
     @JvmStatic fun install(path: String): Boolean {
         val c = ctx ?: return false
         return try {

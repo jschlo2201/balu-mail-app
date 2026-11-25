@@ -185,6 +185,18 @@ async function openMailRef(acc, folder, uid) {
 }
 window.bmOpenMail = openMailRef;
 
+// Link nach außen öffnen – am PC im Standard-Browser, auf dem Handy im Browser bzw. der passenden App
+function openLink(url) {
+  url = String(url || "").trim();
+  if (/^mailto:/i.test(url)) return openMailto(url);
+  if (!/^(https?|tel|sms|geo):/i.test(url)) return;
+  if (window.BaluNative && BaluNative.openUrl) { try { BaluNative.openUrl(url); return; } catch {} }
+  if (document.documentElement.classList.contains("android")) {
+    api("/api/open", { body: { url } }).catch(e => toast("Link konnte nicht geöffnet werden: " + e.message, true));
+    return;
+  }
+  window.open(url, "_blank", "noopener");
+}
 // mailto:-Link (aus Windows, Browser oder Android) im Schreiben-Fenster öffnen
 function openMailto(url) {
   if (!S.accounts.length) { toast("Bitte zuerst ein E-Mail-Konto einrichten.", true); return openAccounts(true); }
@@ -629,6 +641,14 @@ function renderMsg(d, allowRemote) {
   $("#rdZoomIn").onclick = () => setZoom(mz * 1.25); $("#rdZoomOut").onclick = () => setZoom(mz / 1.25); $("#rdZoomPct").onclick = () => setZoom(1);
   fr.addEventListener("load", () => {
     const doc = fr.contentDocument; if (!doc) return;
+    // Links in der Mail: im Browser bzw. in der passenden App öffnen, E-Mail-Adressen im Schreiben-Fenster
+    doc.addEventListener("click", e => {
+      const a = e.target.closest && e.target.closest("a[href]"); if (!a) return;
+      const href = a.getAttribute("href") || "";
+      if (href.startsWith("#")) return;
+      e.preventDefault();
+      openLink(a.href);
+    });
     // Strg + Mausrad
     doc.addEventListener("wheel", e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(mz * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX, e.clientY); }, { passive: false });
     // Zwei-Finger-Zoom
@@ -1914,6 +1934,12 @@ function bindUI() {
 
   // App in den Hintergrund / Fenster schließen: angefangene Mail sichern
   document.addEventListener("visibilitychange", () => { if (document.hidden && C && C.dirty) saveDraft(true); });
+  document.addEventListener("click", e => {
+    if (!document.documentElement.classList.contains("android")) return;
+    const a = e.target.closest && e.target.closest('a[href][target="_blank"]'); if (!a) return;
+    if (!/^(https?|tel|sms|geo|mailto):/i.test(a.href) || a.href.startsWith(location.origin)) return;
+    e.preventDefault(); openLink(a.href);
+  }, true);
   window.addEventListener("pagehide", () => {
     if (!C || !C.dirty) return;
     const data = composeData(); data.draft_id = C.draftId;
