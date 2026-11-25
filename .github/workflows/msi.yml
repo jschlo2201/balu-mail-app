@@ -250,7 +250,7 @@ jobs:
         run: bash -n server/install-proxmox.sh
 
   bereitstellen:
-    name: Als privates Release bereitstellen (Repo bleibt privat)
+    name: Als Release zum Herunterladen veröffentlichen
     needs: [msi, apk, webseite]
     if: github.ref == 'refs/heads/main'   # Testläufe auf anderen Zweigen nie als Update verteilen
     runs-on: ubuntu-latest
