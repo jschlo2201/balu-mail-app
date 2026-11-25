@@ -13,6 +13,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.OpenableColumns
+import java.io.File
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
@@ -161,15 +163,68 @@ class MainActivity : AppCompatActivity() {
                     Thread.sleep(150)
                 }
             }
-            val m = mailtoFrom(intent)
+            val sh = shareFrom(intent)
+            val m = sh?.second ?: mailtoFrom(intent)
             fun enc(v: String) = URLEncoder.encode(v, "UTF-8").replace("+", "%20")
             val extra = when {
+                sh?.first != null -> "&share=" + sh.first + (if (m != null) "&mailto=" + enc(m) else "")
                 m != null -> "&mailto=" + enc(m)
                 intent?.getStringExtra("open") != null -> "&open=" + enc(intent.getStringExtra("open")!!)
                 else -> ""
             }
             runOnUiThread { web.loadUrl("http://127.0.0.1:$PORT/#t=$TOKEN&a=1$extra") }
         }
+    }
+
+    /** „Teilen“ aus einer anderen App: Dateien nach teilen/<id>/ kopieren (holt Balu-Mail als Anhänge ab).
+     *  Ergebnis: Kennung der Dateien (oder null) und ein mailto-Link für Betreff/Text (oder null). */
+    @Suppress("DEPRECATION")
+    private fun streamOne(i: Intent): Uri? = i.getParcelableExtra<android.os.Parcelable>(Intent.EXTRA_STREAM) as? Uri
+    @Suppress("DEPRECATION")
+    private fun streamMany(i: Intent): ArrayList<android.os.Parcelable>? = i.getParcelableArrayListExtra<android.os.Parcelable>(Intent.EXTRA_STREAM)
+
+    private fun shareFrom(i: Intent?): Pair<String?, String?>? {
+        if (i == null || (i.action != Intent.ACTION_SEND && i.action != Intent.ACTION_SEND_MULTIPLE)) return null
+        if (i.getBooleanExtra("balu_erledigt", false)) return null
+        i.putExtra("balu_erledigt", true)
+        val uris = LinkedHashSet<Uri>()
+        try {
+            if (i.action == Intent.ACTION_SEND) streamOne(i)?.let { uris += it }
+            else streamMany(i)?.forEach { (it as? Uri)?.let { u -> uris += u } }
+        } catch (_: Exception) {}
+        i.clipData?.let { cd -> for (n in 0 until cd.itemCount) cd.getItemAt(n).uri?.let { uris += it } }
+        var id: String? = null
+        if (uris.isNotEmpty()) {
+            id = java.util.UUID.randomUUID().toString().replace("-", "")
+            val dir = File(filesDir, "teilen/$id").apply { mkdirs() }
+            val arr = org.json.JSONArray()
+            uris.forEachIndexed { n, u ->
+                try {
+                    var name: String? = null; var size = -1L
+                    contentResolver.query(u, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                        if (c.moveToFirst()) { name = c.getString(0); if (!c.isNull(1)) size = c.getLong(1) }
+                    }
+                    val safe = (name ?: u.lastPathSegment ?: "Datei").replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    val o = JSONObject().put("name", safe).put("mime", contentResolver.getType(u) ?: i.type ?: "")
+                    if (size > 25L * 1048576) o.put("too_big", true)
+                    else {
+                        val f = File(dir, "$n")
+                        contentResolver.openInputStream(u)?.use { inp -> f.outputStream().use { inp.copyTo(it) } }
+                        o.put("file", "$n")
+                    }
+                    arr.put(o)
+                } catch (_: Exception) {}
+            }
+            File(dir, "dateien.json").writeText(arr.toString())
+        }
+        fun enc(v: String) = URLEncoder.encode(v, "UTF-8").replace("+", "%20")
+        val q = mutableListOf<String>()
+        i.getStringArrayExtra(Intent.EXTRA_EMAIL)?.takeIf { it.isNotEmpty() }?.let { q += "to=" + enc(it.joinToString(",")) }
+        i.getStringExtra(Intent.EXTRA_SUBJECT)?.takeIf { it.isNotBlank() }?.let { q += "subject=" + enc(it) }
+        i.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf { it.isNotBlank() }?.let { q += "body=" + enc(it) }
+        val mailto = if (q.isNotEmpty()) "mailto:?" + q.joinToString("&") else null
+        if (id == null && mailto == null) return null
+        return Pair(id, mailto)
     }
 
     /** mailto-Link aus dem Aufruf einer anderen App zusammensetzen (inkl. Betreff/Text aus Extras). */
@@ -191,6 +246,14 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {
+            thread {
+                val sh = shareFrom(intent) ?: return@thread
+                runOnUiThread { web.evaluateJavascript(
+                    "window.bmShare && window.bmShare(${JSONObject.quote(sh.first ?: "")}, ${JSONObject.quote(sh.second ?: "")})", null) }
+            }
+            return
+        }
         intent.getStringExtra("open")?.let { ref ->
             val p = ref.split("|")
             if (p.size >= 3) web.evaluateJavascript(

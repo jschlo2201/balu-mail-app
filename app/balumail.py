@@ -8,7 +8,7 @@ Start:   python balumail.py            (normal)
          python balumail.py --demo     (mit Beispiel-Mails, ohne echte Konten)
 Optionen: --port 8025  --no-browser  --app (eigenes Programmfenster)
 """
-import base64, binascii, copy, datetime as dt, email, email.policy, email.utils, html, imaplib, json
+import base64, binascii, copy, datetime as dt, email, email.header, email.policy, email.utils, html, imaplib, json
 import mimetypes, os, re, secrets, shutil, subprocess, smtplib, socket, ssl, sys, threading, time, uuid, webbrowser
 import urllib.request, urllib.error
 from email.message import EmailMessage
@@ -275,6 +275,70 @@ def draft_ids(c, folder):
     try: return c.run(fn)
     except Exception: return {}
 
+def draft_sent(did):
+    """Nach dem Senden: alle Fassungen des Entwurfs in allen Konten löschen (im Hintergrund)."""
+    if not did or not DRAFT_ID_RE.match(did): return
+    with _draft_glock: _draft_gone[did] = time.time()
+    def job():
+        for a in load_accounts():
+            try: draft_delete(a["id"], did)
+            except Exception: pass
+    threading.Thread(target=job, daemon=True).start()
+
+def _hdr_infos(c, folder, uids_spec, fields):
+    """{UID: (Zeitstempel, {Kopfzeile: Wert})} für die angegebenen Nachrichten."""
+    def fn(c2):
+        c.selected = None
+        c.select(c2, folder)
+        if uids_spec is None:
+            spec = "1:*"
+        else:
+            typ, d = c2.uid("SEARCH", *uids_spec)
+            ids = (d[0] or b"").split() if typ == "OK" else []
+            if not ids: return {}
+            spec = b",".join(ids[-300:]).decode()
+        typ, d = c2.uid("FETCH", spec, f"(UID INTERNALDATE BODY.PEEK[HEADER.FIELDS ({' '.join(fields)})])")
+        out = {}
+        if typ != "OK": return out
+        for it in d or []:
+            if not isinstance(it, tuple): continue
+            m = re.search(rb"UID (\d+)", it[0]); t = imaplib.Internaldate2tuple(it[0])
+            if not m: continue
+            h = email.message_from_bytes(it[1] or b"", policy=email.policy.default)
+            vals = {}
+            for k in fields:
+                try: vals[k] = str(h.get(k) or "")
+                except Exception: vals[k] = ""
+            out[int(m.group(1))] = (time.mktime(t) if t else 0, vals)
+        return out
+    try: return c.run(fn)
+    except Exception: return {}
+
+def _norm_subj(v):
+    try: v = str(email.header.make_header(email.header.decode_header(v)))
+    except Exception: pass
+    return re.sub(r"\s+", " ", v).strip().lower()
+
+def _norm_to(v):
+    return frozenset(a.lower() for _, a in email.utils.getaddresses([v]) if a)
+
+def draft_cleanup_sent(c, folder):
+    """Balu-Entwürfe entfernen, deren Mail bereits gesendet wurde (gleicher Betreff und Empfänger, danach gesendet)."""
+    sent = c.special_folder("sent")
+    if not sent: return 0
+    drafts = {u: v for u, v in _hdr_infos(c, folder, None, ["X-Balu-Draft", "Subject", "To"]).items() if v[1]["X-Balu-Draft"]}
+    if not drafts: return 0
+    g = time.gmtime(min(t for t, _ in drafts.values()) - 86400)
+    since = f"{g.tm_mday:02d}-{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][g.tm_mon - 1]}-{g.tm_year}"
+    sent_msgs = [(t, _norm_subj(h["Subject"]), _norm_to(h["To"])) for t, h in _hdr_infos(c, sent, ("SINCE", since), ["Subject", "To"]).values()]
+    gone = []
+    for u, (t, h) in drafts.items():
+        subj, to = _norm_subj(h["Subject"]), _norm_to(h["To"])
+        if not to: continue
+        if any(st >= t - 120 and ss == subj and sto == to for st, ss, sto in sent_msgs): gone.append(u)
+    if gone: c.delete_forever(folder, sorted(gone))
+    return len(gone)
+
 def draft_cleanup(acc_id):
     """Aufräumen: von jedem Entwurf nur die neueste Fassung behalten (entfernt Mehrfach-Sicherungen)."""
     c = client(acc_id)
@@ -286,7 +350,38 @@ def draft_cleanup(acc_id):
         if k in seen: extra.append(u)
         else: seen.add(k)
     if extra: c.delete_forever(folder, sorted(extra))
+    try: extra += [0] * draft_cleanup_sent(c, folder)
+    except Exception: pass
     return len(extra)
+
+def share_take(sid):
+    """Handy: von einer anderen App geteilte Dateien abholen (die App legt sie unter teilen/<id>/ ab)."""
+    if not re.fullmatch(r"[0-9a-f]{8,40}", str(sid or "")): raise RuntimeError("Ungültige Kennung")
+    base = os.path.join(os.path.dirname(os.path.abspath(CONFIG_FILE)), "teilen")
+    d = os.path.join(base, sid)
+    atts, skipped = [], []
+    try:
+        with open(os.path.join(d, "dateien.json"), encoding="utf-8") as f: meta = json.load(f)
+    except Exception: meta = []
+    total = 0
+    for m in meta:
+        if m.get("too_big"): skipped.append(m.get("name") or "Datei"); continue
+        if not m.get("file"): continue
+        fp = os.path.join(d, os.path.basename(m.get("file") or ""))
+        try: size = os.path.getsize(fp)
+        except OSError: continue
+        name = m.get("name") or os.path.basename(fp)
+        if size > 25 * 1048576 or total + size > 40 * 1048576: skipped.append(name); continue
+        total += size
+        with open(fp, "rb") as f: data = base64.b64encode(f.read()).decode()
+        atts.append({"name": name, "size": size, "ctype": m.get("mime") or mimetypes.guess_type(name)[0] or "application/octet-stream", "data": data})
+    shutil.rmtree(d, ignore_errors=True)
+    try:                                         # Reste älterer Teilen-Vorgänge entfernen
+        for x in os.listdir(base):
+            p = os.path.join(base, x)
+            if time.time() - os.path.getmtime(p) > 86400: shutil.rmtree(p, ignore_errors=True)
+    except OSError: pass
+    return {"attachments": atts, "skipped": skipped}
 
 def open_url(url):
     """Handy: Link im Browser bzw. in der passenden App öffnen (Android-Intent)."""
@@ -3216,9 +3311,12 @@ class Handler(BaseHTTPRequestHandler):
                 if data.get("draft_uid"):
                     try: c.move(data["draft_folder"], [int(data["draft_uid"])], "trash")
                     except Exception: pass
+                draft_sent(data.get("draft_id"))
                 return self._json({"ok": True, "dsn": dsn_ok is not False})
             if u.path == "/api/draft":
                 return self._json(draft_save(data))
+            if u.path == "/api/share":
+                return self._json(share_take(data.get("id")))
             if u.path == "/api/open":
                 if SERVER_MODE: raise RuntimeError("Auf der Webseite öffnet der Browser Links selbst.")
                 return self._json(open_url(data.get("url")))

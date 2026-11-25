@@ -34,6 +34,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mailto" />
             </intent-filter>
+            <!-- „Teilen“ aus anderen Apps: Bilder, Dateien, Text als neue E-Mail -->
+            <intent-filter android:label="E-Mail mit Balu-Mail">
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
         <activity-alias
             android:name=".Logo_balu"

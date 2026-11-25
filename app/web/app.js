@@ -5,7 +5,7 @@ window.BM_LAUNCH = {};
   const get = k => { const m = h.match(new RegExp("[#&]" + k + "=([^&]*)")); return m ? decodeURIComponent(m[1]) : null; };
   if (get("t")) window.BM_TOKEN = get("t");
   if (get("a") === "1") document.documentElement.classList.add("android");
-  window.BM_LAUNCH = { mailto: get("mailto"), eml: get("eml"), open: get("open") };
+  window.BM_LAUNCH = { mailto: get("mailto"), eml: get("eml"), open: get("open"), share: get("share") };
   history.replaceState(null, "", location.pathname);
 })();
 const isMobile = () => matchMedia("(max-width: 760px)").matches;
@@ -168,7 +168,8 @@ async function init() {
 
 function handleLaunch(l) {
   if (!l) return;
-  if (l.mailto) openMailto(l.mailto);
+  if (l.share) shareIn(l.share, l.mailto);
+  else if (l.mailto) openMailto(l.mailto);
   else if (l.eml) openEml(l.eml);
   else if (l.open) { const [a, f, u] = l.open.split("|"); openMailRef(a, f, u); }
 }
@@ -184,6 +185,23 @@ async function openMailRef(acc, folder, uid) {
   if (uid && S.msgs.some(m => key(m) === k)) openMsg(k); else renderEmpty();
 }
 window.bmOpenMail = openMailRef;
+
+// Vom Handy geteilt (Bilder, Dateien, Text): neue E-Mail mit den Dateien als Anhang öffnen
+async function shareIn(id, mailto) {
+  if (!S.accounts.length) { toast("Bitte zuerst ein E-Mail-Konto einrichten.", true); return openAccounts(true); }
+  if (mailto) openMailto(mailto); else { closeModal(); compose("new"); $("#cpTo").focus(); }
+  if (!C || !id) return;
+  const c = C;
+  try {
+    const r = await api("/api/share", { body: { id } });
+    if (C !== c) return;
+    (r.attachments || []).forEach(a => c.attachments.push(a));
+    renderAtts();
+    if ((r.attachments || []).length) c.dirty = true;
+    if ((r.skipped || []).length) toast("Zu groß für eine E-Mail (max. 25 MB je Datei): " + r.skipped.join(", "), true);
+  } catch (e) { toast("Geteilte Dateien konnten nicht übernommen werden: " + e.message, true); }
+}
+window.bmShare = shareIn;
 
 // Link nach außen öffnen – am PC im Standard-Browser, auf dem Handy im Browser bzw. der passenden App
 function openLink(url) {
@@ -957,6 +975,7 @@ function composeData() {
 }
 async function sendMail() {
   const data = composeData();
+  data.draft_id = C.draftId;
   if (!data.to && !data.cc && !data.bcc) return toast("Bitte einen Empfänger eintragen.", true);
   if (!data.subject && !confirm("Ohne Betreff senden?")) return;
   const b = $("#cpSend"); b.disabled = true; b.lastChild.textContent = " Wird gesendet …";
@@ -967,7 +986,6 @@ async function sendMail() {
     toast("E-Mail wurde gesendet");
     if (window.Fun) Fun.sent();
     const c = C;
-    if (c.saved || c.mode === "draft") deleteDraft(c);
     if (c.oldDraft) api("/api/move", { body: { acc: c.oldDraft.acc, folder: c.oldDraft.folder, uids: [c.oldDraft.uid], target: "trash" } }).catch(() => {});
     closeCompose("sent"); S.curMsg ? renderMsg(S.curMsg) : renderEmpty();
     loadFolders().then(renderNav);
